@@ -90,7 +90,7 @@ Creates a new zone based off a nicely BIND formatted file
 Arguments:
     <file> Path to the bind zone file you want to import
 Options:
-    --dryRun don't do anything. will show you what we were able to parse.
+    --dryRun  don't do anything. will show you what we were able to parse.
 
     """
     action = 'import'
