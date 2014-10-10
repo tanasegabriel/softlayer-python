@@ -14,6 +14,7 @@ from SoftLayer.testing import fixtures
 
 
 class DnsTests(testing.TestCase):
+
     def set_up(self):
         self.client = testing.FixtureClient()
 
@@ -121,13 +122,13 @@ class DnsTests(testing.TestCase):
                                             '--really': False})
 
     def test_import_zone(self):
-        import pprint 
+        import pprint
         pp = pprint.PrettyPrinter(indent=4)
 
         command = dns.ImportZone(client=self.client)
         output = command.execute({
-            '<zone>' : 'realtest.com'
-            '--dryRun' : '--dryRun'
-            })
+            '<file>': 'realtest.com',
+            '--dryRun': '--dryRun'
+        })
         pp.pprint(output)
-        self.assertEqual(['Finished'],output)
+        self.assertEqual('Finished', output)

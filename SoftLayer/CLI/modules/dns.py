@@ -90,65 +90,76 @@ Creates a new zone based off a nicely BIND formatted file
 Arguments:
     <file> Path to the bind zone file you want to import
 Options:
-    --dryRun    don't actually do anything. This will show you what we were able to parse. 
+    --dryRun don't do anything. will show you what we were able to parse.
 
     """
     action = 'import'
-    def execute(self,args):
+
+    def execute(self, args):
         import re
-        dryRun = args.get('--dryRun')
+        dry_run = args.get('--dryRun')
 
         manager = SoftLayer.DNSManager(self.client)
         lines = [line.strip() for line in open(args['<file>'])]
-        zoneSearch = re.search('^\$ORIGIN (?P<zone>.*)\.',lines[0])
-        zone = zoneSearch.group('zone')
+        zone_search = re.search(r'^\$ORIGIN (?P<zone>.*)\.', lines[0])
+        zone = zone_search.group('zone')
 
-        if (dryRun):
-            print  "Starting up a dry run for %s..." % (zone) 
+        if dry_run:
+            print("Starting up a dry run for %s..." % zone)
             zone_id = 0
         else:
             try:
-                zone_id = helpers.resolve_id(manager.resolve_ids, zone,name='zone')
-            except :
-                print "\033[92mCREATED ZONE:   %s\033[0m" % (zone)
+                zone_id = helpers.resolve_id(
+                    manager.resolve_ids, zone, name='zone')
+            except Exception:
+                print("\033[92mCREATED ZONE:   %s\033[0m" % zone)
                 manager.create_zone(zone)
-                zone_id = helpers.resolve_id(manager.resolve_ids, zone,name='zone')
+                zone_id = helpers.resolve_id(
+                    manager.resolve_ids, zone, name='zone')
 
         for content in lines[1:]:
-            domainSearch = re.search('^((?P<domain>([\w-]+(\.)?)*|\@)?\s+(?P<ttl>\d+)?\s+(?P<class>\w+)?)?\s+(?P<type>\w+)\s+(?P<record>.*)',content)
-            if (domainSearch is None): 
-                print "\033[92mFailed: unknown line:   %s\033[0m" % (content)
+            domain_search = re.search(
+                r'^((?P<domain>([\w-]+(\.)?)*|\@)?\s+(?P<ttl>\d+)?\s+(?P<class>\w+)?)?\s+(?P<type>\w+)\s+(?P<record>.*)', content)
+            if domain_search is None:
+                print("\033[92mFailed: unknown line:   %s\033[0m" % content)
             else:
-                domainName = domainSearch.group('domain')
-                #The API requires we send a host, although bind allows a blank entry. @ is the same thing as blank
-                if (domainName is None):
-                    domainName = "@"
+                domain_name = domain_search.group('domain')
+                # The API requires we send a host, although bind allows a blank
+                # entry. @ is the same thing as blank
+                if domain_name is None:
+                    domain_name = "@"
 
-                domainttl = domainSearch.group('ttl')
-                domainClass = domainSearch.group('class')
-                domainType = domainSearch.group('type')
-                domainRecord = domainSearch.group('record')
+                domainttl = domain_search.group('ttl')
+                domain_type = domain_search.group('type')
+                domain_record = domain_search.group('record')
 
-                #This will skip the SOA record bit. And any domain that gets parsed oddly.
-                if (domainType.upper() == 'IN'):
-                    print "SKIPPED: Host: %s TTL: %s Type: %s Record: %s" % (domainName,domainttl,domainType,domainRecord) 
+                # This will skip the SOA record bit. And any domain that gets
+                # parsed oddly.
+                if domain_type.upper() == 'IN':
+                    print("SKIPPED: Host: %s TTL: %s Type: %s Record: %s" % (domain_name, domainttl, domain_type, domain_record))
                     continue
 
-                #the dns class doesn't support weighted MX records yet, so we chomp that part out. 
-                if (domainType.upper() == "MX"):
-                    recordSearch = re.search('(?P<weight>\d+)\s+(?P<record>.*)',domainRecord)
-                    domainRecord = recordSearch.group('record')
+                # the dns class doesn't support weighted MX records yet, so we
+                # chomp that part out.
+                if domain_type.upper() == "MX":
+                    record_search = re.search(
+                        r'(?P<weight>\d+)\s+(?P<record>.*)', domain_record)
+                    domain_record = record_search.group('record')
 
                 try:
-                    if (dryRun):
-                        print "Parsed: Host: %s TTL: %s Type: %s Record: %s" % (domainName,domainttl,domainType,domainRecord) 
+                    if dry_run:
+                        print("Parsed: Host: %s TTL: %s Type: %s Record: %s" % (domain_name, domainttl, domain_type, domain_record))
                     else:
-                        manager.create_record(zone_id,domainName,domainType,domainRecord,domainttl)
-                        print "\033[92mCreated: Host: %s TTL: %s Type: %s Record: %s\033[0m" % (domainName,domainttl,domainType,domainRecord)
-                except Exception, e:
-                    print "\033[91mFAILED: Host: %s Type: %s Record: %s" % (domainName,domainType,domainRecord.upper())  
-                    print "\t", e ,"\033[0m"
-
+                        manager.create_record(
+                            zone_id,
+                            domain_name,
+                            domain_type,
+                            domain_record,
+                            domainttl)
+                        print("\033[92mCreated: Host: %s TTL: %s Type: %s Record: %s\033[0m" % (domain_name, domainttl, domain_type, domain_record))
+                except Exception as exception:
+                    print("\033[91mFAILED: Host: %s Type: %s Record: %s" % (domain_name, domain_type, domain_record.upper()))
+                    print("\t", exception, "\033[0m")
 
         return "Finished"
 
