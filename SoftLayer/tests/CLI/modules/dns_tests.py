@@ -127,6 +127,5 @@ class DnsTests(testing.TestCase):
             '<file>': 'realtest.com',
             '--dryRun': '--dryRun'
         })
-        self.assertEqual('realtest.com',
-                         formatting.format_output(output,
-                                                  'python')[0]['Host'])
+        formatted = formatting.format_output(output, 'python')
+        self.assertEqual('realtest.com', formatted[0]['Host'])
