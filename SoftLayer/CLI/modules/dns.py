@@ -97,6 +97,9 @@ Options:
 
     def execute(self, args):
         import re
+
+        table = formatting.Table(
+            ['Action', 'Host', 'TTL', 'Type', 'Record'])
         dry_run = args.get('--dryRun')
 
         manager = SoftLayer.DNSManager(self.client)
@@ -104,64 +107,81 @@ Options:
         zone_search = re.search(r'^\$ORIGIN (?P<zone>.*)\.', lines[0])
         zone = zone_search.group('zone')
 
+        #used for parsing records out of the zone file
+        domain = '(?P<domain>([\w-]+(\.)?)*|\@)?\s+'
+        ttl = '(?P<ttl>\d+)?\s+'
+        class_r = '(?P<class>\w+)?'
+        type_r = '(?P<type>\w+)\s+'
+        record = '(?P<record>.*)'
+        regex_r = r'^(' + domain + ttl + class_r + ')?\s+' + type_r + record
+
         if dry_run:
-            print("Starting up a dry run for %s..." % zone)
+            action = "Dry Run"
             zone_id = 0
         else:
             try:
-                zone_id = helpers.resolve_id(
-                    manager.resolve_ids, zone, name='zone')
-            except Exception:
-                print("\033[92mCREATED ZONE:   %s\033[0m" % zone)
+                print("found")
+                action = "\033[92mFOUND"
+                zone_id = manager._get_zone_id_from_name(zone)
+                # zone_id = helpers.resolve_id(
+                    # manager.resolve_ids, zone, name='zone')
+                print("ZONE: %s" % zone_id)
+            except Exception as exception:
+                print("created")
+                action = "\033[92mCREATED"
                 manager.create_zone(zone)
                 zone_id = helpers.resolve_id(
                     manager.resolve_ids, zone, name='zone')
 
+
+        table.add_row([action,zone,'','Zone','\033[0m'])
+
         for content in lines[1:]:
-            domain_search = re.search(
-                r'^((?P<domain>([\w-]+(\.)?)*|\@)?\s+(?P<ttl>\d+)?\s+(?P<class>\w+)?)?\s+(?P<type>\w+)\s+(?P<record>.*)', content)
+            domain_search = re.search(regex_r , content)
             if domain_search is None:
-                print("\033[92mFailed: unknown line:   %s\033[0m" % content)
-            else:
-                domain_name = domain_search.group('domain')
-                # The API requires we send a host, although bind allows a blank
-                # entry. @ is the same thing as blank
-                if domain_name is None:
-                    domain_name = "@"
+                table.add_row(["Unknown",content,'','',''])
+                continue
 
-                domainttl = domain_search.group('ttl')
-                domain_type = domain_search.group('type')
-                domain_record = domain_search.group('record')
+            domain_name = domain_search.group('domain')
+            # The API requires we send a host
+            if domain_name is None:
+                domain_name = "@"
 
-                # This will skip the SOA record bit. And any domain that gets
-                # parsed oddly.
-                if domain_type.upper() == 'IN':
-                    print("SKIPPED: Host: %s TTL: %s Type: %s Record: %s" % (domain_name, domainttl, domain_type, domain_record))
-                    continue
+            domain_ttl = domain_search.group('ttl')
+            domain_type = domain_search.group('type')
+            domain_record = domain_search.group('record')
 
-                # the dns class doesn't support weighted MX records yet, so we
-                # chomp that part out.
-                if domain_type.upper() == "MX":
-                    record_search = re.search(
-                        r'(?P<weight>\d+)\s+(?P<record>.*)', domain_record)
-                    domain_record = record_search.group('record')
+            # This will skip the SOA record bit.
+            if domain_type.upper() == 'SOA':
+                table.add_row(["Skipped",content,'','',''])
+                continue
 
-                try:
-                    if dry_run:
-                        print("Parsed: Host: %s TTL: %s Type: %s Record: %s" % (domain_name, domainttl, domain_type, domain_record))
-                    else:
-                        manager.create_record(
-                            zone_id,
-                            domain_name,
-                            domain_type,
-                            domain_record,
-                            domainttl)
-                        print("\033[92mCreated: Host: %s TTL: %s Type: %s Record: %s\033[0m" % (domain_name, domainttl, domain_type, domain_record))
-                except Exception as exception:
-                    print("\033[91mFAILED: Host: %s Type: %s Record: %s" % (domain_name, domain_type, domain_record.upper()))
-                    print("\t", exception, "\033[0m")
+            # the dns class doesn't support weighted MX records yet, so we
+            # chomp that part out.
+            if domain_type.upper() == "MX":
+                record_search = re.search(
+                    r'(?P<weight>\d+)\s+(?P<record>.*)', domain_record)
+                domain_record = record_search.group('record')
 
-        return "Finished"
+            try:
+                if dry_run:
+                    action = "\033[33mParsed"
+                else:
+                    action = "\033[32mCreated"
+                    manager.create_record(
+                        zone_id,
+                        domain_name,
+                        domain_type,
+                        domain_record,
+                        domain_ttl)
+            except Exception as exception:
+                action = "\033[91mException"
+                table.add_row([action,exception,'','',"\033[0m"])
+            table.add_row([
+                action, domain_name, domain_ttl, 
+                domain_type, domain_record + "\033[0m"])
+
+        return table
 
 
 class ListZones(environment.CLIRunnable):
