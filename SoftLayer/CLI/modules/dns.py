@@ -107,39 +107,34 @@ Options:
         zone_search = re.search(r'^\$ORIGIN (?P<zone>.*)\.', lines[0])
         zone = zone_search.group('zone')
 
-        #used for parsing records out of the zone file
-        domain = '(?P<domain>([\w-]+(\.)?)*|\@)?\s+'
-        ttl = '(?P<ttl>\d+)?\s+'
-        class_r = '(?P<class>\w+)?'
-        type_r = '(?P<type>\w+)\s+'
-        record = '(?P<record>.*)'
-        regex_r = r'^(' + domain + ttl + class_r + ')?\s+' + type_r + record
+        # used for parsing records out of the zone file
+        domain = r'(?P<domain>([\w-]+(\.)?)*|\@)?\s+'
+        ttl = r'(?P<ttl>\d+)?\s+'
+        class_r = r'(?P<class>\w+)?'
+        type_r = r'(?P<type>\w+)\s+'
+        record = r'(?P<record>.*)'
+        regex_r = r'^(' + domain + ttl + class_r + r')?\s+' + type_r + record
 
         if dry_run:
             action = "Dry Run"
             zone_id = 0
         else:
             try:
-                print("found")
                 action = "\033[92mFOUND"
-                zone_id = manager._get_zone_id_from_name(zone)
-                # zone_id = helpers.resolve_id(
-                    # manager.resolve_ids, zone, name='zone')
-                print("ZONE: %s" % zone_id)
-            except Exception as exception:
-                print("created")
+                zone_id = helpers.resolve_id(
+                    manager.resolve_ids, zone, name='zone')
+            except exceptions.SoftLayerError as exception:
                 action = "\033[92mCREATED"
                 manager.create_zone(zone)
                 zone_id = helpers.resolve_id(
                     manager.resolve_ids, zone, name='zone')
 
-
-        table.add_row([action,zone,'','Zone','\033[0m'])
+        table.add_row([action, zone, '', 'Zone', '\033[0m'])
 
         for content in lines[1:]:
-            domain_search = re.search(regex_r , content)
+            domain_search = re.search(regex_r, content)
             if domain_search is None:
-                table.add_row(["Unknown",content,'','',''])
+                table.add_row(["Unknown", content, '', '', ''])
                 continue
 
             domain_name = domain_search.group('domain')
@@ -153,7 +148,7 @@ Options:
 
             # This will skip the SOA record bit.
             if domain_type.upper() == 'SOA':
-                table.add_row(["Skipped",content,'','',''])
+                table.add_row(["Skipped", content, '', '', ''])
                 continue
 
             # the dns class doesn't support weighted MX records yet, so we
@@ -174,11 +169,11 @@ Options:
                         domain_type,
                         domain_record,
                         domain_ttl)
-            except Exception as exception:
+            except exception.SoftLayerError as exception:
                 action = "\033[91mException"
-                table.add_row([action,exception,'','',"\033[0m"])
+                table.add_row([action, exception, '', '', "\033[0m"])
             table.add_row([
-                action, domain_name, domain_ttl, 
+                action, domain_name, domain_ttl,
                 domain_type, domain_record + "\033[0m"])
 
         return table
